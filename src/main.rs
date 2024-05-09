@@ -64,7 +64,7 @@ async fn main() {
         let x = macroquad::rand::gen_range(10.0, screen_width - 10.0);
         let y = macroquad::rand::gen_range(10.0, screen_height - 10.0);
 
-        swarm.add(swarm::Swarmer::new(Vec2 { x: x, y: y }));
+        swarm.add(swarm::Swarmer::new(Vec2 { x, y }));
     }
 
     let mut game = GameManager {
@@ -78,13 +78,20 @@ async fn main() {
                 max: screen_height,
             },
         },
-        swarm: swarm,
+        swarm,
     };
 
     let dt: f32 = 1.0;
     loop {
         // Update game state
+
+        use std::time::Instant;
+        let now = Instant::now();
+
         game.update(dt);
+
+        let elapsed = now.elapsed();
+        println!("Elapsed: {:.2?}", elapsed);
 
         // Draw game state
         clear_background(macroquad::prelude::DARKGRAY);
