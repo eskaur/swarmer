@@ -13,7 +13,7 @@ const ATTRACTION_RANGE: f32 = 40.0;
 const WALL_REPULSION_RANGE: f32 = 200.0;
 
 const ATTRACTION_FACTOR: f32 = 0.0005;
-const REPULSION_FACTOR: f32 = 0.05;
+const REPULSION_FACTOR: f32 = 0.2;
 const ALIGNMENT_FACTOR: f32 = 0.05;
 const WALL_REPULSION_FACTOR: f32 = 2.0;
 
@@ -82,7 +82,7 @@ where
 fn compute_repulsion(swarmer: &Swarmer, others: &[&Swarmer]) -> Vec2 {
     others.iter().fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
         let vec = swarmer.get_position() - other.get_position();
-        acc + vec
+        acc + vec.normalize()
     })
 }
 
