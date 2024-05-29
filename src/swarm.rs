@@ -79,6 +79,60 @@ where
         .collect()
 }
 
+fn compute_repulsion(swarmer: &Swarmer, others: &[&Swarmer]) -> Vec2 {
+    others.iter().fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
+        let vec = swarmer.get_position() - other.get_position();
+        acc + vec
+    })
+}
+
+fn compute_attraction(swarmer: &Swarmer, others: &[&Swarmer]) -> Vec2 {
+    let attractors_center_of_mass = others.iter().fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
+        acc + other.get_position()
+    }) / (others.len() as f32);
+    attractors_center_of_mass - swarmer.get_position()
+}
+
+fn compute_alignment(swarmer: &Swarmer, others: &[&Swarmer]) -> Vec2 {
+    let attractors_average_velocity = others.iter().fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
+        acc + other.get_velocity()
+    }) / (others.len() as f32);
+    attractors_average_velocity - swarmer.get_velocity()
+}
+
+fn compute_wall_repulsion(swarmer: &Swarmer, walls: &Rectangle) -> Vec2 {
+    let mut wall_repulsion = Vec2 { x: 0.0, y: 0.0 };
+
+    if swarmer.get_position().x - walls.xrange.min < WALL_REPULSION_RANGE {
+        let repulsion = 1.0 / (0.01 + swarmer.get_position().x - walls.xrange.min);
+        wall_repulsion += Vec2 {
+            x: repulsion,
+            y: 0.0,
+        };
+    } else if walls.xrange.max - swarmer.get_position().x < WALL_REPULSION_RANGE {
+        let repulsion = -1.0 / (0.01 + walls.xrange.max - swarmer.get_position().x);
+        wall_repulsion += Vec2 {
+            x: repulsion,
+            y: 0.0,
+        };
+    }
+
+    if swarmer.get_position().y - walls.yrange.min < WALL_REPULSION_RANGE {
+        let repulsion = 1.0 / (0.01 + swarmer.get_position().y - walls.yrange.min);
+        wall_repulsion += Vec2 {
+            x: 0.0,
+            y: repulsion,
+        };
+    } else if walls.yrange.max - swarmer.get_position().y < WALL_REPULSION_RANGE {
+        let repulsion = -1.0 / (0.01 + walls.yrange.max - swarmer.get_position().y);
+        wall_repulsion += Vec2 {
+            x: 0.0,
+            y: repulsion,
+        };
+    }
+    wall_repulsion
+}
+
 fn compute_acceleration(current: &Swarmer, everyone: &[Swarmer], limits: &Rectangle) -> Vec2 {
     let distances = compute_distances(current, everyone);
 
@@ -88,59 +142,11 @@ fn compute_acceleration(current: &Swarmer, everyone: &[Swarmer], limits: &Rectan
     let repulsors = filter_by_distance(everyone, &distances, is_repulsor);
     let attractors = filter_by_distance(everyone, &distances, is_attractor);
 
-    let repulsion = repulsors
-        .iter()
-        .fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
-            let vec = current.get_position() - other.get_position();
-            acc + vec
-        });
+    let repulsion = compute_repulsion(current, &repulsors);
+    let attraction = compute_attraction(current, &attractors);
+    let alignment = compute_alignment(current, &attractors);
+    let wall_repulsion = compute_wall_repulsion(current, limits);
 
-    let attractors_center_of_mass = attractors
-        .iter()
-        .fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
-            acc + other.get_position()
-        })
-        / (attractors.len() as f32);
-
-    let attraction = attractors_center_of_mass - current.get_position();
-
-    let attractors_average_velocity = attractors
-        .iter()
-        .fold(Vec2 { x: 0.0, y: 0.0 }, |acc, other| {
-            acc + other.get_velocity()
-        })
-        / (attractors.len() as f32);
-    let alignment = attractors_average_velocity - current.get_velocity();
-
-    let mut wall_repulsion = Vec2 { x: 0.0, y: 0.0 };
-
-    if current.get_position().x - limits.xrange.min < WALL_REPULSION_RANGE {
-        let repulsion = 1.0 / (0.01 + current.get_position().x - limits.xrange.min);
-        wall_repulsion += Vec2 {
-            x: repulsion,
-            y: 0.0,
-        };
-    } else if limits.xrange.max - current.get_position().x < WALL_REPULSION_RANGE {
-        let repulsion = -1.0 / (0.01 + limits.xrange.max - current.get_position().x);
-        wall_repulsion += Vec2 {
-            x: repulsion,
-            y: 0.0,
-        };
-    }
-
-    if current.get_position().y - limits.yrange.min < WALL_REPULSION_RANGE {
-        let repulsion = 1.0 / (0.01 + current.get_position().y - limits.yrange.min);
-        wall_repulsion += Vec2 {
-            x: 0.0,
-            y: repulsion,
-        };
-    } else if limits.yrange.max - current.get_position().y < WALL_REPULSION_RANGE {
-        let repulsion = -1.0 / (0.01 + limits.yrange.max - current.get_position().y);
-        wall_repulsion += Vec2 {
-            x: 0.0,
-            y: repulsion,
-        };
-    }
     REPULSION_FACTOR * repulsion
         + ATTRACTION_FACTOR * attraction
         + ALIGNMENT_FACTOR * alignment
