@@ -1,4 +1,7 @@
 use crate::common::Rectangle;
+use crate::obstacles::Obstacle;
+use crate::shapes::{Arrow, Shape};
+use crate::traits::{Drawable, Movable, Object, Repulsive};
 use macroquad::prelude::Vec2;
 use std::slice;
 
@@ -16,6 +19,7 @@ const ATTRACTION_FACTOR: f32 = 0.0005;
 const REPULSION_FACTOR: f32 = 0.2;
 const ALIGNMENT_FACTOR: f32 = 0.05;
 const WALL_REPULSION_FACTOR: f32 = 2.0;
+const OBSTACLE_REPULSION_FACTOR: f32 = 0.5;
 
 const MIN_SPEED: f32 = 3.0;
 const MAX_SPEED: f32 = 6.0;
@@ -26,14 +30,6 @@ impl Swarmer {
             position,
             velocity: Vec2 { x: 0.1, y: 0.1 },
         }
-    }
-
-    pub fn get_position(&self) -> Vec2 {
-        self.position
-    }
-
-    pub fn get_velocity(&self) -> Vec2 {
-        self.velocity
     }
 
     fn update(&mut self, acceleration: Vec2, limits: &Rectangle, dt: f32) {
@@ -48,6 +44,29 @@ impl Swarmer {
         self.position += self.velocity * dt;
         self.position.x = self.position.x.clamp(limits.xrange.min, limits.xrange.max);
         self.position.y = self.position.y.clamp(limits.yrange.min, limits.yrange.max);
+    }
+}
+
+impl Object for Swarmer {
+    fn get_position(&self) -> Vec2 {
+        self.position
+    }
+}
+
+impl Movable for Swarmer {
+    fn get_velocity(&self) -> Vec2 {
+        self.velocity
+    }
+}
+
+impl Drawable for Swarmer {
+    fn get_shape(&self) -> Shape {
+        Shape::Arrow(Arrow {
+            position: self.position,
+            direction: self.velocity.normalize(),
+            length: 10.0,
+            width: 4.0,
+        })
     }
 }
 
@@ -133,7 +152,20 @@ fn compute_wall_repulsion(swarmer: &Swarmer, walls: &Rectangle) -> Vec2 {
     wall_repulsion
 }
 
-fn compute_acceleration(current: &Swarmer, everyone: &[Swarmer], limits: &Rectangle) -> Vec2 {
+fn compute_obstacle_repulsion(swarmer: &Swarmer, obstacles: &[Obstacle]) -> Vec2 {
+    obstacles
+        .iter()
+        .fold(Vec2 { x: 0.0, y: 0.0 }, |acc, obstacle| {
+            acc + obstacle.get_repulsion_vector(swarmer)
+        })
+}
+
+fn compute_acceleration(
+    current: &Swarmer,
+    everyone: &[Swarmer],
+    obstacles: &[Obstacle],
+    limits: &Rectangle,
+) -> Vec2 {
     let distances = compute_distances(current, everyone);
 
     let is_repulsor = |dist: f32| dist > 0.001 && dist < REPULSION_RANGE;
@@ -146,11 +178,13 @@ fn compute_acceleration(current: &Swarmer, everyone: &[Swarmer], limits: &Rectan
     let attraction = compute_attraction(current, &attractors);
     let alignment = compute_alignment(current, &attractors);
     let wall_repulsion = compute_wall_repulsion(current, limits);
+    let obstacle_repulsion = compute_obstacle_repulsion(current, obstacles);
 
     REPULSION_FACTOR * repulsion
         + ATTRACTION_FACTOR * attraction
         + ALIGNMENT_FACTOR * alignment
         + WALL_REPULSION_FACTOR * wall_repulsion
+        + OBSTACLE_REPULSION_FACTOR * obstacle_repulsion
 }
 
 pub struct Swarm {
@@ -178,11 +212,11 @@ impl Swarm {
         self.members.iter()
     }
 
-    pub fn update(&mut self, limits: &Rectangle, dt: f32) {
+    pub fn update(&mut self, obstacles: &[Obstacle], limits: &Rectangle, dt: f32) {
         let accelerations: Vec<Vec2> = self
             .members
             .iter()
-            .map(|swarmer| compute_acceleration(swarmer, &self.members, limits))
+            .map(|swarmer| compute_acceleration(swarmer, &self.members, obstacles, limits))
             .collect();
 
         self.members
