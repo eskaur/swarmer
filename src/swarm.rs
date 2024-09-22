@@ -3,7 +3,6 @@ use crate::obstacles::Obstacle;
 use crate::shapes::{Arrow, Shape};
 use crate::traits::{Drawable, Movable, Object, Repulsive};
 use macroquad::prelude::Vec2;
-use std::slice;
 
 #[derive(Debug)]
 pub struct Swarmer {
@@ -208,7 +207,7 @@ impl Swarm {
         self.members.push(swarmer);
     }
 
-    pub fn iter(&self) -> slice::Iter<Swarmer> {
+    pub fn iter(&self) -> impl Iterator<Item = &Swarmer> {
         self.members.iter()
     }
 
